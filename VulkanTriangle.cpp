@@ -51,6 +51,7 @@ void VulkanTriangle::initVulkan() {
 	createGraphicsPipeline();
 	createFramebuffers();
 	createCommandPool();
+	createVertexBuffer();
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -81,6 +82,9 @@ void VulkanTriangle::cleanupSwapChain() {
 void VulkanTriangle::cleanup() {
 
 	cleanupSwapChain();
+
+	vkDestroyBuffer(device, vertexBuffer, nullptr);
+	vkFreeMemory(device, vertexBufferMemory, nullptr);
 
 	vkDestroyPipeline(device, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -456,14 +460,16 @@ void VulkanTriangle::createGraphicsPipeline() {
 
 	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
-	// Specifying these as nullptr as of now, since we are hardcoding the vertex data values in the shader files.
+	auto bindingDescription = Vertex::getBindingDescription();
+	auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
 	// Used for specifying in which format we are going to pass the vertex data to the vertex shader.
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 0;
-	vertexInputInfo.pVertexBindingDescriptions = nullptr;
-	vertexInputInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+	vertexInputInfo.vertexBindingDescriptionCount = 1;
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t> (attributeDescriptions.size());
+	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
 	// This describes how we are using the vertices to draw in the rendering application
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -653,6 +659,36 @@ void VulkanTriangle::createCommandPool() {
 	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create command pool!");
 	}
+}
+
+void VulkanTriangle::createVertexBuffer() {
+	VkBufferCreateInfo bufferInfo{};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT; // What's the usage of this buffer
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // used only by graphics queue
+
+	if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create vertex buffer!");
+	}
+
+	VkMemoryRequirements memRequirements{};
+	vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to allocate vertex buffer memory!");
+	}
+
+	// Once the memory has been successfully allocated, bind it to the vertex buffer.
+	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+
+
 }
 
 void VulkanTriangle::createCommandBuffers() {
@@ -967,6 +1003,29 @@ QueueFamilyIndices VulkanTriangle::findQueueFamilies(VkPhysicalDevice device) {
 	}
 
 	return indices;
+}
+
+// This method is to find the right memory type out of all memory types provided by GPU, that matches the vertex buffer memory requirements
+// and the application memory requirements.
+uint32_t VulkanTriangle::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+	// First find the list of available memory types in physical device
+	// VkPhysicalDeviceMemoryProperties structure has 2 arrays, memory types and memory heaps. Memory heaps specify the distinct memory 
+	// resources like dedicated VRAM (Video RAM, device local RAM located on Graphics card), and swap space RAM, when the VRAM runs out.
+	// Memory types array specifiies a list of VkMemoryType structs that specifies the heap and properties of each type of memory
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+	// typeFilter is used to specify the bit field of memory types are suitable
+	// We also need to see, whether the memory has suitable properties, like being able to map it, so that we can directly write to GPU
+	// memory from CPU (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) and automatic sync up between the CPU and GPU 
+	// (VK_MEMORY_PROPERTY_HOST_COHERENT_BIT), else the data written to the GPU won't be read by CPU and we need to do manual sync up.
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+		if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+			return i;
+		}
+	}
+
+	throw std::runtime_error("Failed to find a suitable memory type!");
 }
 
 bool VulkanTriangle::checkDeviceExtensionSupport(VkPhysicalDevice device) {
