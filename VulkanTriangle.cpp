@@ -84,7 +84,7 @@ void VulkanTriangle::cleanup() {
 	cleanupSwapChain();
 
 	vkDestroyBuffer(device, vertexBuffer, nullptr);
-	vkFreeMemory(device, vertexBufferMemory, nullptr);
+	vkFreeMemory(device, vertexBufferMemory, nullptr); // Buffer that was using this memory needs to be first destroyed, before this is freed.
 
 	vkDestroyPipeline(device, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -688,7 +688,10 @@ void VulkanTriangle::createVertexBuffer() {
 	// Once the memory has been successfully allocated, bind it to the vertex buffer.
 	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
 
-
+	void* data;
+	vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+	memcpy(data, vertices.data(), (size_t)bufferInfo.size);
+	vkUnmapMemory(device, vertexBufferMemory);
 }
 
 void VulkanTriangle::createCommandBuffers() {
@@ -866,6 +869,10 @@ void VulkanTriangle::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 	// Second parameter specifies whether the pipeline is a graphics or compute one.
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
+	VkBuffer vertexBuffers[] = { vertexBuffer };
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
 	// Viewport and scissors were dynamic, so need to set them in the command buffer before issuing our draw command.
 	VkViewport viewport{};
 	viewport.x = 0;
@@ -883,7 +890,7 @@ void VulkanTriangle::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 
 	// Can specify the offsets for the first vertex and first instance, if we are using vertex buffers and instanced rendering
 	// Instanced rendering means we are drawing multiple copies of the same object, like 100 trees in a forest, which we aren't doing here.
-	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+	vkCmdDraw(commandBuffer, static_cast<uint32_t> (vertices.size()), 1, 0, 0);
 
 	vkCmdEndRenderPass(commandBuffer);
 
