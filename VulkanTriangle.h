@@ -10,6 +10,8 @@
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
 #include<glm/gtc/matrix_transform.hpp>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 #include <iostream>
 #include <stdexcept> // For error handling
@@ -142,6 +144,9 @@ private:
 
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
 	VkBuffer indexBuffer;
@@ -183,6 +188,7 @@ private:
 	void createGraphicsPipeline();
 	void createFramebuffers();
 	void createCommandPool();
+	void createTextureImage();
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createUniformBuffers();

@@ -16,6 +16,9 @@
     <Filter Include="Source Files\shaders">
       <UniqueIdentifier>{705f445e-ca39-48eb-af11-d814008c914d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\textures">
+      <UniqueIdentifier>{2eb032f3-c804-4f17-a277-0e3678bd3dfd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\frag.spv">
@@ -43,5 +46,10 @@
     <ClInclude Include="VulkanTriangle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="textures\texture.jpg">
+      <Filter>Source Files\textures</Filter>
+    </Image>
   </ItemGroup>
 </Project>
